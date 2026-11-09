@@ -1,10 +1,11 @@
-
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
 #include <cstdint>
 #include <string>
 #include <vector>
+
+class ThreadPool;
 
 enum class State {
     S, I, R, V, D
@@ -38,6 +39,7 @@ struct Parameters {
     int chunks = 1;
 
     std::string division = "strips";
+    std::string parallelMode = "sequential";
 
     int snapshotEvery = 0;
     std::string snapshotDir = "snapshots";
@@ -77,18 +79,30 @@ private:
     ) const;
 
     void initialize();
+
     Counts countStates() const;
     uint64_t checksum() const;
 
     int infectedNeighbours(int row, int col) const;
 
     void updateCell(int row, int col, uint64_t day);
-    void updateDay(uint64_t day);
+
+    Counts updateChunk(
+        int chunk,
+        uint64_t day
+    );
+
+    Counts updateDay(
+        uint64_t day,
+        ThreadPool* pool
+    );
+
+    void updateDaySequential(uint64_t day);
 
 public:
     explicit Simulation(const Parameters& p);
+
     void run();
 };
 
 #endif
-
