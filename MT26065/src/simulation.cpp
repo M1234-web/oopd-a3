@@ -2,15 +2,27 @@
 #include "simulation.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <deque>
+#include <filesystem>
 #include <fstream>
+#include <future>
+#include <iomanip>
 #include <iostream>
-#include <stdexcept>
 #include <limits>
+#include <sstream>
+#include <stdexcept>
+#include <thread>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
+// ------------------------------------------------------------
 // SplitMix64 deterministic hash
+// ------------------------------------------------------------
+
 static uint64_t splitmix64(uint64_t x) {
     x += 0x9e3779b97f4a7c15ULL;
     x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
@@ -18,7 +30,104 @@ static uint64_t splitmix64(uint64_t x) {
     return x ^ (x >> 31);
 }
 
+// ------------------------------------------------------------
+// Part C1: PPM snapshot writer
+// ------------------------------------------------------------
+
+// S = White
+// I = Red
+// R = Green
+// V = Blue
+// D = Black
+
+static bool writePPM(
+    const vector<Person>& grid,
+    int N,
+    const string& filename,
+    int latencyMs
+) {
+    try {
+        // Simulate slow storage.
+        if (latencyMs > 0) {
+            this_thread::sleep_for(
+                chrono::milliseconds(latencyMs)
+            );
+        }
+
+        ofstream image(filename);
+
+        if (!image.is_open()) {
+            cerr << "Failed to open snapshot: "
+                 << filename << "\n";
+            return false;
+        }
+
+        // P3 = ASCII colour PPM format.
+        image << "P3\n";
+        image << N << " " << N << "\n";
+        image << "255\n";
+
+        for (int row = 0; row < N; row++) {
+            for (int col = 0; col < N; col++) {
+
+                const Person& person = grid[
+                    static_cast<size_t>(row) * N + col
+                ];
+
+                int r = 255;
+                int g = 255;
+                int b = 255;
+
+                switch (person.state) {
+
+                    case State::S:
+                        r = 255; g = 255; b = 255;
+                        break;
+
+                    case State::I:
+                        r = 255; g = 0; b = 0;
+                        break;
+
+                    case State::R:
+                        r = 0; g = 200; b = 0;
+                        break;
+
+                    case State::V:
+                        r = 0; g = 0; b = 255;
+                        break;
+
+                    case State::D:
+                        r = 0; g = 0; b = 0;
+                        break;
+                }
+
+                image << r << " " << g << " " << b << "  ";
+            }
+
+            image << "\n";
+        }
+
+        image.close();
+
+        if (!image) {
+            cerr << "Failed while writing snapshot: "
+                 << filename << "\n";
+            return false;
+        }
+
+        return true;
+    }
+    catch (const exception& e) {
+        cerr << "Snapshot error for " << filename
+             << ": " << e.what() << "\n";
+        return false;
+    }
+}
+
+// ------------------------------------------------------------
 // Constructor
+// ------------------------------------------------------------
+
 Simulation::Simulation(const Parameters& p)
     : params(p), betaEff(p.beta * p.m) {
 
@@ -29,7 +138,11 @@ Simulation::Simulation(const Parameters& p)
         p.m <= 0 || p.m > 1 ||
         p.lambda < 0 || p.lambda > 1 ||
         p.thetaOn < 0 || p.thetaOn > 1 ||
-        p.thetaOff < 0 || p.thetaOff > p.thetaOn) {
+        p.thetaOff < 0 || p.thetaOff > p.thetaOn ||
+        p.snapshotEvery < 0 ||
+        p.maxPending <= 0 ||
+        p.ioLatencyMs < 0) {
+
         throw invalid_argument("Invalid simulation parameters");
     }
 
@@ -49,7 +162,10 @@ Simulation::Simulation(const Parameters& p)
     initialize();
 }
 
+// ------------------------------------------------------------
 // Deterministic random hash
+// ------------------------------------------------------------
+
 uint64_t Simulation::hashRandom(
     uint64_t day,
     uint64_t cell,
@@ -64,7 +180,10 @@ uint64_t Simulation::hashRandom(
     return x;
 }
 
+// ------------------------------------------------------------
 // Convert hash to [0,1)
+// ------------------------------------------------------------
+
 double Simulation::random01(
     uint64_t day,
     uint64_t cell,
@@ -75,7 +194,10 @@ double Simulation::random01(
            * (1.0 / 9007199254740992.0);
 }
 
+// ------------------------------------------------------------
 // Initialize population
+// ------------------------------------------------------------
+
 void Simulation::initialize() {
 
     uint64_t total = current.size();
@@ -85,7 +207,7 @@ void Simulation::initialize() {
         person.infectedDays = 0;
     }
 
-    // Generate deterministic random ordering
+    // Generate deterministic random ordering.
     vector<pair<uint64_t, uint64_t>> order;
     order.reserve(total);
 
@@ -98,7 +220,7 @@ void Simulation::initialize() {
 
     sort(order.begin(), order.end());
 
-    // Vaccinate a fraction v of the population
+    // Vaccinate a fraction v of the population.
     uint64_t vaccinated =
         static_cast<uint64_t>(params.v * total);
 
@@ -106,7 +228,7 @@ void Simulation::initialize() {
         current[order[i].second].state = State::V;
     }
 
-    // Infect I0 randomly selected susceptible people
+    // Infect I0 randomly selected susceptible people.
     uint64_t infected = 0;
 
     for (const auto& item : order) {
@@ -133,7 +255,10 @@ void Simulation::initialize() {
     next = current;
 }
 
+// ------------------------------------------------------------
 // Count states
+// ------------------------------------------------------------
+
 Counts Simulation::countStates() const {
 
     Counts counts;
@@ -141,7 +266,6 @@ Counts Simulation::countStates() const {
     for (const auto& person : current) {
 
         switch (person.state) {
-
             case State::S: counts.S++; break;
             case State::I: counts.I++; break;
             case State::R: counts.R++; break;
@@ -153,7 +277,10 @@ Counts Simulation::countStates() const {
     return counts;
 }
 
+// ------------------------------------------------------------
 // Calculate grid checksum
+// ------------------------------------------------------------
+
 uint64_t Simulation::checksum() const {
 
     uint64_t hash = 0;
@@ -175,7 +302,10 @@ uint64_t Simulation::checksum() const {
     return hash;
 }
 
+// ------------------------------------------------------------
 // Count infected neighbours
+// ------------------------------------------------------------
+
 int Simulation::infectedNeighbours(int row, int col) const {
 
     int count = 0;
@@ -190,7 +320,7 @@ int Simulation::infectedNeighbours(int row, int col) const {
             int nr = row + dr;
             int nc = col + dc;
 
-            // Grid boundaries
+            // Grid boundaries.
             if (nr < 0 || nr >= params.N ||
                 nc < 0 || nc >= params.N)
                 continue;
@@ -206,7 +336,10 @@ int Simulation::infectedNeighbours(int row, int col) const {
     return count;
 }
 
+// ------------------------------------------------------------
 // Update one cell
+// ------------------------------------------------------------
+
 void Simulation::updateCell(
     int row,
     int col,
@@ -265,7 +398,10 @@ void Simulation::updateCell(
     }
 }
 
+// ------------------------------------------------------------
 // Update entire grid for one day
+// ------------------------------------------------------------
+
 void Simulation::updateDay(uint64_t day) {
 
     for (int i = 0; i < params.N; i++) {
@@ -275,11 +411,14 @@ void Simulation::updateDay(uint64_t day) {
         }
     }
 
-    // Swap only after all cells have been updated
+    // Swap only after all cells have been updated.
     current.swap(next);
 }
 
-// Main simulation
+// ------------------------------------------------------------
+// Main simulation - C1
+// ------------------------------------------------------------
+
 void Simulation::run() {
 
     ofstream csv(params.outputFile);
@@ -290,9 +429,117 @@ void Simulation::run() {
 
     csv << "day,S,I,R,V,D,beta_eff,checksum\n";
 
+    // Create snapshot directory only when snapshots are enabled.
+    if (params.snapshotEvery > 0) {
+        filesystem::create_directories(params.snapshotDir);
+    }
+
+    struct PendingWrite {
+        uint64_t day;
+        string filename;
+        future<bool> task;
+    };
+
+    deque<PendingWrite> pendingWrites;
+
+    // Wait for and report the oldest pending write.
+    auto waitOldestWrite = [&]() {
+
+        PendingWrite write = std::move(pendingWrites.front());
+        pendingWrites.pop_front();
+
+        try {
+            bool success = write.task.get();
+
+            if (!success) {
+                cerr << "Snapshot write failed for day "
+                     << write.day << ": "
+                     << write.filename << "\n";
+            } else {
+                cout << "Snapshot completed for day "
+                     << write.day << "\n";
+            }
+        }
+        catch (const exception& e) {
+            cerr << "Snapshot task failed for day "
+                 << write.day << ": "
+                 << e.what() << "\n";
+        }
+    };
+
+    // Save a snapshot, either blocking or asynchronously.
+    auto saveSnapshot = [&](uint64_t day) {
+
+        ostringstream filenameStream;
+
+        filenameStream << params.snapshotDir
+                       << "/snapshot_day_"
+                       << setw(6) << setfill('0') << day
+                       << ".ppm";
+
+        string filename = filenameStream.str();
+
+        if (!params.asyncIO) {
+
+            // Blocking version.
+            bool success = writePPM(
+                current,
+                params.N,
+                filename,
+                params.ioLatencyMs
+            );
+
+            if (!success) {
+                cerr << "Snapshot write failed for day "
+                     << day << ": " << filename << "\n";
+            } else {
+                cout << "Snapshot saved for day "
+                     << day << ": " << filename << "\n";
+            }
+        }
+        else {
+
+            // Enforce the maximum number of pending writes.
+            if (pendingWrites.size() >=
+                static_cast<size_t>(params.maxPending)) {
+
+                waitOldestWrite();
+            }
+
+            // Copy the grid to avoid a data race.
+            vector<Person> snapshot = current;
+
+            future<bool> task = async(
+                launch::async,
+                [
+                    snapshot = std::move(snapshot),
+                    N = params.N,
+                    filename,
+                    latency = params.ioLatencyMs
+                ]() {
+                    return writePPM(
+                        snapshot,
+                        N,
+                        filename,
+                        latency
+                    );
+                }
+            );
+
+            pendingWrites.push_back({
+                day,
+                filename,
+                std::move(task)
+            });
+
+            cout << "Submitted asynchronous snapshot for day "
+                 << day << "\n";
+        }
+    };
+
     Counts counts = countStates();
 
-    // Day 0
+    // Day 0.
     csv << 0 << ","
         << counts.S << ","
         << counts.I << ","
@@ -306,11 +553,11 @@ void Simulation::run() {
 
     for (int day = 1; day <= params.days; day++) {
 
-        updateDay(day);
+        updateDay(static_cast<uint64_t>(day));
 
         counts = countStates();
 
-        // Record the beta used for this day
+        // Record the beta used for this day.
         csv << day << ","
             << counts.S << ","
             << counts.I << ","
@@ -328,11 +575,17 @@ void Simulation::run() {
              << ", D = " << counts.D
              << "\n";
 
-        // Calculate infected fraction
+        // Save a snapshot every K days.
+        if (params.snapshotEvery > 0 &&
+            day % params.snapshotEvery == 0) {
+
+            saveSnapshot(static_cast<uint64_t>(day));
+        }
+
         double infectedFraction =
             static_cast<double>(counts.I) / current.size();
 
-        // Lockdown decision applies from next day
+        // Lockdown decision applies from next day.
         if (!lockdownActive) {
 
             if (infectedFraction > params.thetaOn) {
@@ -348,15 +601,94 @@ void Simulation::run() {
             }
         }
 
-        // Stop if epidemic ends
+        // Stop if epidemic ends.
         if (counts.I == 0 && !params.fixedDays) {
             break;
         }
+    }
+
+    // Wait for every remaining asynchronous write.
+    cout << "\nWaiting for pending snapshot writes...\n";
+
+    while (!pendingWrites.empty()) {
+        waitOldestWrite();
     }
 
     csv.close();
 
     cout << "\nSimulation completed.\n";
     cout << "CSV saved to: " << params.outputFile << "\n";
+
+    if (params.snapshotEvery > 0) {
+        cout << "Snapshots saved in: "
+             << params.snapshotDir << "\n";
+    }
 }
 
+// ------------------------------------------------------------
+// Part C2: Run one independent simulation and return summary
+// ------------------------------------------------------------
+
+RunSummary Simulation::runSummary() {
+
+    RunSummary summary;
+
+    // Include day 0 in the peak calculation.
+    Counts counts = countStates();
+
+    summary.peakInfectedFraction =
+        static_cast<double>(counts.I) / current.size();
+
+    summary.peakDay = 0;
+
+    // Run this independent simulation.
+    for (int day = 1; day <= params.days; day++) {
+
+        updateDay(static_cast<uint64_t>(day));
+
+        counts = countStates();
+
+        double infectedFraction =
+            static_cast<double>(counts.I) / current.size();
+
+        // Update peak infection statistics.
+        if (infectedFraction > summary.peakInfectedFraction) {
+            summary.peakInfectedFraction = infectedFraction;
+            summary.peakDay = day;
+        }
+
+        summary.daysSimulated = day;
+
+        // Lockdown decision applies from the next day.
+        if (!lockdownActive) {
+
+            if (infectedFraction > params.thetaOn) {
+                betaEff *= params.lambda;
+                lockdownActive = true;
+            }
+
+        } else {
+
+            if (infectedFraction < params.thetaOff) {
+                betaEff = params.beta * params.m;
+                lockdownActive = false;
+            }
+        }
+
+        // Stop if epidemic ends.
+        if (counts.I == 0 && !params.fixedDays) {
+            break;
+        }
+    }
+
+    // Calculate final statistics.
+    counts = countStates();
+
+    // Total ever infected = currently infected + recovered + dead.
+    summary.totalInfected =
+        counts.I + counts.R + counts.D;
+
+    summary.totalDeaths = counts.D;
+
+    return summary;
+}

@@ -1,4 +1,3 @@
-
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
@@ -39,8 +38,12 @@ struct Parameters {
 
     std::string division = "strips";
 
+    // Part C: snapshot settings
     int snapshotEvery = 0;
-    std::string snapshotDir = "snapshots";
+    std::string snapshotDir = "results/partC";
+    bool asyncIO = false;
+    int maxPending = 2;
+    int ioLatencyMs = 0;
 
     std::string outputFile = "results.csv";
     bool fixedDays = false;
@@ -52,6 +55,14 @@ struct Counts {
     uint64_t R = 0;
     uint64_t V = 0;
     uint64_t D = 0;
+};
+
+struct RunSummary {
+    double peakInfectedFraction = 0.0;
+    int peakDay = 0;
+    uint64_t totalInfected = 0;
+    uint64_t totalDeaths = 0;
+    int daysSimulated = 0;
 };
 
 class Simulation {
@@ -88,7 +99,7 @@ private:
 public:
     explicit Simulation(const Parameters& p);
     void run();
+    RunSummary runSummary();
 };
 
 #endif
-

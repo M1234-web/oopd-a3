@@ -1,4 +1,3 @@
-
 #include "simulation.h"
 
 #include <iostream>
@@ -8,7 +7,6 @@
 using namespace std;
 
 void printUsage() {
-
     cout << R"(
 Usage:
 ./pandemic [options]
@@ -29,8 +27,15 @@ Options:
   --threads <int>          Number of threads
   --chunks <int>           Number of chunks
   --division <string>      Grid division strategy
-  --snapshot-every <int>   Snapshot interval
-  --snapshot-dir <string>  Snapshot directory
+
+Part C snapshot options:
+  --snapshot-every <int>   Save a snapshot every K days
+  --snapshot-dir <string>  Snapshot output directory
+  --async-io               Enable asynchronous snapshot writing
+  --max-pending <int>      Maximum pending asynchronous writes
+  --io-latency <int>       Artificial write delay in milliseconds
+
+Other options:
   --output <string>        CSV output filename
   --fixed-days             Run exactly the specified days
   --help                   Display help
@@ -54,6 +59,11 @@ int main(int argc, char* argv[]) {
 
             if (arg == "--fixed-days") {
                 params.fixedDays = true;
+                continue;
+            }
+
+            if (arg == "--async-io") {
+                params.asyncIO = true;
                 continue;
             }
 
@@ -114,6 +124,12 @@ int main(int argc, char* argv[]) {
             else if (arg == "--snapshot-dir")
                 params.snapshotDir = value;
 
+            else if (arg == "--max-pending")
+                params.maxPending = stoi(value);
+
+            else if (arg == "--io-latency")
+                params.ioLatencyMs = stoi(value);
+
             else if (arg == "--output")
                 params.outputFile = value;
 
@@ -124,17 +140,36 @@ int main(int argc, char* argv[]) {
         if (params.threads <= 0 ||
             params.chunks <= 0 ||
             params.snapshotEvery < 0 ||
-            params.outputFile.empty()) {
+            params.maxPending <= 0 ||
+            params.ioLatencyMs < 0 ||
+            params.outputFile.empty() ||
+            params.snapshotDir.empty()) {
+
             throw invalid_argument("Invalid configuration");
         }
 
-        cout << "Starting sequential pandemic simulation\n";
+        cout << "Starting pandemic simulation\n";
+
         cout << "Grid size: "
              << params.N << " x " << params.N << "\n";
 
+        cout << "Snapshot interval: "
+             << params.snapshotEvery << "\n";
+
+        cout << "I/O mode: "
+             << (params.asyncIO ? "Asynchronous" : "Blocking")
+             << "\n";
+
+        if (params.asyncIO) {
+            cout << "Maximum pending writes: "
+                 << params.maxPending << "\n";
+        }
+
+        cout << "I/O latency: "
+             << params.ioLatencyMs << " ms\n";
+
         Simulation simulation(params);
         simulation.run();
-
     }
     catch (const exception& e) {
 
@@ -146,4 +181,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
