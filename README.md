@@ -171,14 +171,15 @@ Main responsibilities:
 
 The command-line interface includes model parameters such as `--N`, `--days`, `--seed`, `--beta`, `--d`, `--mu`, `--I0`, `--v`, `--m`, `--lambda`, `--theta-on`, `--theta-off`, and `--output`. The `--fixed-days` option is used when the experiment must execute a fixed number of days.
 
-**Build (from the repository root on `main`):**
+**Build (on `main`):**
 
 ```bash
+cd MT26065
 g++ -std=c++17 -O2 -Wall -Wextra -pedantic \
     src/main.cpp src/simulation.cpp -o pandemic
 ```
 
-**Example run:**
+**Example run (from inside `MT26065/`):**
 
 ```bash
 mkdir -p results
@@ -211,16 +212,18 @@ The grid can be divided in three ways:
 
 The correctness test runs the same input with multiple thread counts and all supported divisions, then compares each parallel CSV against the sequential CSV. The assignment specifies thread counts `1, 2, 3, 4, 7, 8, 16`.
 
-**Build (from the repository root on `part_b`):**
+**Build (on `part_b`):**
 
 ```bash
+cd MT26065
 g++ -std=c++17 -O2 -pthread \
     src/main.cpp src/simulation.cpp -o pandemic
 ```
 
-**Example run pattern:**
+**Example run pattern (from inside `MT26065/`):**
 
 ```bash
+mkdir -p results
 ./pandemic --N 1000 --days 200 --seed 42 \
     --threads 4 --chunks 16 \
     --mode pool --division strips \
@@ -229,7 +232,7 @@ g++ -std=c++17 -O2 -pthread \
 
 Use the mode and division option names accepted by the checked-out `main.cpp`; the implementation's internal mode names are `sequential`, `thread-per-day`, and `pool`, and the division names are `strips`, `blocks`, and `interleaved`.
 
-**Correctness test:** run the Part B test script from the repository root (inspect `scripts/` for its actual filename), or run the same parameter set manually for each thread count and division. Every daily CSV must match the sequential reference.
+**Correctness test:** run the Part B test script from inside `MT26065/` (inspect `scripts/` for its actual filename), or run the same parameter set manually for each thread count and division. Every daily CSV must match the sequential reference.
 
 ### Part C — Asynchronous programming (`part_c`)
 
@@ -265,14 +268,15 @@ Completed futures are consumed in completion order. Progress is printed as runs 
 
 A time limit can stop further work: runs that have not started are cancelled/not launched, while already running tasks are allowed to finish. The program reports runs with missing results.
 
-**Build the sweep driver (from the repository root on `part_c`):**
+**Build the sweep driver (on `part_c`):**
 
 ```bash
+cd MT26065
 g++ -std=c++17 -O2 -pthread \
     src/sweep.cpp src/simulation.cpp -o sweep
 ```
 
-**Run pattern used during development:**
+**Run pattern used during development (from inside `MT26065/`):**
 
 ```bash
 mkdir -p results/partC
@@ -289,14 +293,15 @@ Part D measures the performance of the simulation and its asynchronous features.
 
 The benchmark driver is `src/benchmarks.cpp`. It is built separately from the normal simulation executable.
 
-**Build (from the repository root on `part_d`):**
+**Build (on `part_d`):**
 
 ```bash
+cd MT26065
 g++ -std=c++17 -O2 -pthread \
     src/benchmarks.cpp src/simulation.cpp -o part_d
 ```
 
-**Run:**
+**Run (from inside `MT26065/`):**
 
 ```bash
 mkdir -p results/partD
@@ -410,7 +415,7 @@ The exact Part E driver filename, command-line interface, output filenames, and 
 
 ## 6. Build and run reference
 
-All commands below are run from the repository root after checking out the corresponding branch. The project uses C++17 and POSIX threads; `-pthread` is required for threaded builds.
+All commands below are run from the `MT26065/` directory (`cd MT26065` from the repository root) after checking out the corresponding branch. The project uses C++17 and POSIX threads; `-pthread` is required for threaded builds.
 
 | Branch | Executable | Build command |
 |---|---|---|
@@ -418,17 +423,18 @@ All commands below are run from the repository root after checking out the corre
 | `part_b` | `pandemic` | `g++ -std=c++17 -O2 -pthread src/main.cpp src/simulation.cpp -o pandemic` |
 | `part_c` sweep | `sweep` | `g++ -std=c++17 -O2 -pthread src/sweep.cpp src/simulation.cpp -o sweep` |
 | `part_d` benchmarks | `part_d` | `g++ -std=c++17 -O2 -pthread src/benchmarks.cpp src/simulation.cpp -o part_d` |
-| `part_e` | `part_e` | Use the Part E driver source shown by `find src -maxdepth 1 -type f -name '*.cpp'`; compile that driver together with `src/simulation.cpp` using the same flags. |
+| `part_e` | `part_e` | Using the Part E driver source shown by `find src -maxdepth 1 -type f -name '*.cpp'`; compile that driver together with `src/simulation.cpp` using the same flags. |
 
 For Python plotting scripts, need to run by activating the virtual Python environment that has the required packages (typically `numpy`, `pandas`, and `matplotlib`):
 
 ```bash
+# from inside MT26065/
 python3 scripts/<plotting-script>.py
 ```
 
 ## 7. Results and generated files
 
-Generated data and figures are under `results/`, separated by assignment part. 
+Generated data and figures are under `MT26065/results/`, separated by assignment part. 
 
 ## 8. Reproducibility and performance methodology
 
