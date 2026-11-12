@@ -1,6 +1,7 @@
+
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # ======================================
 # PROJECT DIRECTORY
@@ -37,6 +38,7 @@ echo "======================================"
 echo "Project: $PROJECT_ROOT"
 echo "Grid: $N x $N"
 echo "Days: $DAYS"
+echo "Seed: $SEED"
 
 # ======================================
 # STEP 1: SEQUENTIAL REFERENCE
@@ -54,6 +56,11 @@ echo "Creating sequential reference..."
     --output "$REFERENCE" \
     > /dev/null
 
+if [ ! -s "$REFERENCE" ]; then
+    echo "ERROR: Sequential reference was not generated."
+    exit 1
+fi
+
 echo "Sequential reference created."
 
 # ======================================
@@ -66,6 +73,7 @@ MODES=("thread-per-day" "pool")
 
 TOTAL=0
 PASSED=0
+FAILED=0
 
 for MODE in "${MODES[@]}"; do
 
@@ -90,7 +98,7 @@ for MODE in "${MODES[@]}"; do
 
             echo ""
             echo "Test $TOTAL"
-            echo "Mode: $MODE | T: $T | C: $C | Division: $DIV"
+            echo "Mode: $MODE | Threads: $T | Chunks: $C | Division: $DIV"
 
             "$PROGRAM" \
                 --N "$N" \
@@ -104,13 +112,24 @@ for MODE in "${MODES[@]}"; do
                 --output "$OUTPUT" \
                 > /dev/null
 
+            if [ ! -s "$OUTPUT" ]; then
+                echo "FAIL: Output file missing or empty."
+                FAILED=$((FAILED + 1))
+                exit 1
+            fi
+
             if cmp -s "$REFERENCE" "$OUTPUT"; then
                 echo "PASS"
                 PASSED=$((PASSED + 1))
             else
-                echo "FAIL"
-                echo "Difference detected:"
+                echo "FAIL: Output differs from sequential reference."
+                FAILED=$((FAILED + 1))
+
+                echo ""
+                echo "Difference:"
                 diff -u "$REFERENCE" "$OUTPUT" || true
+
+                echo ""
                 echo "Stopping tests."
                 exit 1
             fi
@@ -130,7 +149,7 @@ echo "======================================"
 
 echo "Total tests: $TOTAL"
 echo "Passed:      $PASSED"
-echo "Failed:      $((TOTAL - PASSED))"
+echo "Failed:      $FAILED"
 
 if [ "$PASSED" -eq "$TOTAL" ]; then
     echo ""
