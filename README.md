@@ -176,7 +176,7 @@ The command-line interface includes model parameters such as `--N`, `--days`, `-
 ```bash
 cd MT26065
 g++ -std=c++17 -O2 -Wall -Wextra -pedantic \
-    src/main.cpp src/simulation.cpp -o pandemic
+    src/MT26065_main.cpp src/MT26065_simulation.cpp -o pandemic
 ```
 
 **Example run (from inside `MT26065/`):**
@@ -217,7 +217,7 @@ The correctness test runs the same input with multiple thread counts and all sup
 ```bash
 cd MT26065
 g++ -std=c++17 -O2 -pthread \
-    src/main.cpp src/simulation.cpp -o pandemic
+    src/MT26065_main.cpp src/MT26065_simulation.cpp -o pandemic
 ```
 
 **Example run pattern (from inside `MT26065/`):**
@@ -230,7 +230,7 @@ mkdir -p results
     --output results/partB_pool_strips.csv --fixed-days
 ```
 
-Use the mode and division option names accepted by the checked-out `main.cpp`; the implementation's internal mode names are `sequential`, `thread-per-day`, and `pool`, and the division names are `strips`, `blocks`, and `interleaved`.
+Use the mode and division option names accepted by the checked-out `MT26065_main.cpp`; the implementation's internal mode names are `sequential`, `thread-per-day`, and `pool`, and the division names are `strips`, `blocks`, and `interleaved`.
 
 **Correctness test:** run the Part B test script from inside `MT26065/` (inspect `scripts/` for its actual filename), or run the same parameter set manually for each thread count and division. Every daily CSV must match the sequential reference.
 
@@ -273,7 +273,7 @@ A time limit can stop further work: runs that have not started are cancelled/not
 ```bash
 cd MT26065
 g++ -std=c++17 -O2 -pthread \
-    src/sweep.cpp src/simulation.cpp -o sweep
+    src/sweep.cpp src/MT26065_simulation.cpp -o sweep
 ```
 
 **Run pattern used during development (from inside `MT26065/`):**
@@ -298,7 +298,7 @@ The benchmark driver is `src/benchmarks.cpp`. It is built separately from the no
 ```bash
 cd MT26065
 g++ -std=c++17 -O2 -pthread \
-    src/benchmarks.cpp src/simulation.cpp -o part_d
+    src/benchmarks.cpp src/MT26065_simulation.cpp -o part_d
 ```
 
 **Run (from inside `MT26065/`):**
@@ -419,11 +419,11 @@ All commands below are run from the `MT26065/` directory (`cd MT26065` from the 
 
 | Branch | Executable | Build command |
 |---|---|---|
-| `main` | `pandemic` | `g++ -std=c++17 -O2 -Wall -Wextra -pedantic src/main.cpp src/simulation.cpp -o pandemic` |
-| `part_b` | `pandemic` | `g++ -std=c++17 -O2 -pthread src/main.cpp src/simulation.cpp -o pandemic` |
-| `part_c` sweep | `sweep` | `g++ -std=c++17 -O2 -pthread src/sweep.cpp src/simulation.cpp -o sweep` |
-| `part_d` benchmarks | `part_d` | `g++ -std=c++17 -O2 -pthread src/benchmarks.cpp src/simulation.cpp -o part_d` |
-| `part_e` | `part_e` | Using the Part E driver source shown by `find src -maxdepth 1 -type f -name '*.cpp'`; compile that driver together with `src/simulation.cpp` using the same flags. |
+| `main` | `pandemic` | `g++ -std=c++17 -O2 -Wall -Wextra -pedantic src/MT26065_main.cpp src/MT26065_simulation.cpp -o pandemic` |
+| `part_b` | `pandemic` | `g++ -std=c++17 -O2 -pthread src/MT26065_main.cpp src/MT26065_simulation.cpp -o pandemic` |
+| `part_c` sweep | `sweep` | `g++ -std=c++17 -O2 -pthread src/sweep.cpp src/MT26065_simulation.cpp -o sweep` |
+| `part_d` benchmarks | `part_d` | `g++ -std=c++17 -O2 -pthread src/benchmarks.cpp src/MT26065_simulation.cpp -o part_d` |
+| `part_e` | `part_e` | Using the Part E driver source shown by `find src -maxdepth 1 -type f -name '*.cpp'`; compile that driver together with `src/MT26065_simulation.cpp` using the same flags. |
 
 For Python plotting scripts, need to run by activating the virtual Python environment that has the required packages (typically `numpy`, `pandas`, and `matplotlib`):
 
