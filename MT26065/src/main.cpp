@@ -1,149 +1,61 @@
-
 #include "simulation.h"
-
+#include <exception>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
 using namespace std;
 
-void printUsage() {
-
-    cout << R"(
-Usage:
-./pandemic [options]
-
-Options:
-  --N <int>                Grid size
-  --days <int>             Maximum simulation days
-  --seed <int>             Random seed
-  --beta <double>          Transmission probability
-  --d <int>                Infectious duration
-  --mu <double>            Mortality probability
-  --I0 <int>               Initially infected
-  --v <double>             Vaccinated fraction
-  --m <double>             Mask factor
-  --lambda <double>        Lockdown factor
-  --theta-on <double>      Lockdown activation threshold
-  --theta-off <double>     Lockdown deactivation threshold
-  --threads <int>          Number of threads
-  --chunks <int>           Number of chunks
-  --division <string>      Grid division strategy
-  --snapshot-every <int>   Snapshot interval
-  --snapshot-dir <string>  Snapshot directory
-  --output <string>        CSV output filename
-  --fixed-days             Run exactly the specified days
-  --help                   Display help
-)";
+static void usage() {
+    cout << "Usage: ./pandemic [options]\n"
+         << "  --N N --days D --seed S --beta B --d D --mu M --I0 I --v V\n"
+         << "  --m M --lambda L --theta-on X --theta-off X\n"
+         << "  --threads T --chunks C --division strips|blocks|interleaved\n"
+         << "  --execution pool|thread-per-day\n"
+         << "  --snapshot-every K --snapshot-dir DIR\n"
+         << "  --snapshot-mode none|blocking|async --io-latency MS --max-pending Q\n"
+         << "  --output FILE --fixed-days --help\n";
 }
 
-int main(int argc, char* argv[]) {
-
-    Parameters params;
-
+int main(int argc, char** argv) {
+    Parameters p;
     try {
-
-        for (int i = 1; i < argc; i++) {
-
-            string arg = argv[i];
-
-            if (arg == "--help") {
-                printUsage();
-                return 0;
-            }
-
-            if (arg == "--fixed-days") {
-                params.fixedDays = true;
-                continue;
-            }
-
-            if (i + 1 >= argc) {
-                throw invalid_argument("Missing value for " + arg);
-            }
-
-            string value = argv[++i];
-
-            if (arg == "--N")
-                params.N = stoi(value);
-
-            else if (arg == "--days")
-                params.days = stoi(value);
-
-            else if (arg == "--seed")
-                params.seed = stoull(value);
-
-            else if (arg == "--beta")
-                params.beta = stod(value);
-
-            else if (arg == "--d")
-                params.d = stoi(value);
-
-            else if (arg == "--mu")
-                params.mu = stod(value);
-
-            else if (arg == "--I0")
-                params.I0 = stoi(value);
-
-            else if (arg == "--v")
-                params.v = stod(value);
-
-            else if (arg == "--m")
-                params.m = stod(value);
-
-            else if (arg == "--lambda")
-                params.lambda = stod(value);
-
-            else if (arg == "--theta-on")
-                params.thetaOn = stod(value);
-
-            else if (arg == "--theta-off")
-                params.thetaOff = stod(value);
-
-            else if (arg == "--threads")
-                params.threads = stoi(value);
-
-            else if (arg == "--chunks")
-                params.chunks = stoi(value);
-
-            else if (arg == "--division")
-                params.division = value;
-
-            else if (arg == "--snapshot-every")
-                params.snapshotEvery = stoi(value);
-
-            else if (arg == "--snapshot-dir")
-                params.snapshotDir = value;
-
-            else if (arg == "--output")
-                params.outputFile = value;
-
-            else
-                throw invalid_argument("Unknown argument: " + arg);
+        for (int i = 1; i < argc; ++i) {
+            string a = argv[i];
+            if (a == "--help") { usage(); return 0; }
+            if (a == "--fixed-days") { p.fixedDays = true; continue; }
+            if (i + 1 >= argc) throw invalid_argument("Missing value for " + a);
+            string v = argv[++i];
+            if (a == "--N") p.N = stoi(v);
+            else if (a == "--days") p.days = stoi(v);
+            else if (a == "--seed") p.seed = stoull(v);
+            else if (a == "--beta") p.beta = stod(v);
+            else if (a == "--d") p.d = stoi(v);
+            else if (a == "--mu") p.mu = stod(v);
+            else if (a == "--I0") p.I0 = stoi(v);
+            else if (a == "--v") p.v = stod(v);
+            else if (a == "--m") p.m = stod(v);
+            else if (a == "--lambda") p.lambda = stod(v);
+            else if (a == "--theta-on") p.thetaOn = stod(v);
+            else if (a == "--theta-off") p.thetaOff = stod(v);
+            else if (a == "--threads") p.threads = stoi(v);
+            else if (a == "--chunks") p.chunks = stoi(v);
+            else if (a == "--division") p.division = v;
+            else if (a == "--execution") p.execution = v;
+            else if (a == "--snapshot-every") p.snapshotEvery = stoi(v);
+            else if (a == "--snapshot-dir") p.snapshotDir = v;
+            else if (a == "--snapshot-mode") p.snapshotMode = v;
+            else if (a == "--io-latency") p.ioLatencyMs = stoi(v);
+            else if (a == "--max-pending") p.maxPending = stoi(v);
+            else if (a == "--output") p.outputFile = v;
+            else throw invalid_argument("Unknown option: " + a);
         }
-
-        if (params.threads <= 0 ||
-            params.chunks <= 0 ||
-            params.snapshotEvery < 0 ||
-            params.outputFile.empty()) {
-            throw invalid_argument("Invalid configuration");
-        }
-
-        cout << "Starting sequential pandemic simulation\n";
-        cout << "Grid size: "
-             << params.N << " x " << params.N << "\n";
-
-        Simulation simulation(params);
-        simulation.run();
-
-    }
-    catch (const exception& e) {
-
+        Simulation sim(p);
+        sim.run();
+    } catch (const exception& e) {
         cerr << "Error: " << e.what() << "\n";
-        printUsage();
-
+        usage();
         return 1;
     }
-
     return 0;
 }
-
